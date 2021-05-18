@@ -1,25 +1,4 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <fcntl.h>
-
-#define DO_CRC32
-
-#ifdef DO_CRC16
-  #define CRC_INIT    0xffff
-  #define CRC_SIZE    sizeof(uint16_t)
-  #define CRC_TYPE    *(uint16_t*)
-  #define CRC_FORMAT  "0x%04X"
-  #define CRC_FUNC    CRC16_Calc
-#endif // DO_CRC16
-#ifdef DO_CRC32
-  #define CRC_INIT    0xffffffff
-  #define CRC_SIZE    sizeof(uint32_t)
-  #define CRC_TYPE    *(uint32_t*)
-  #define CRC_FORMAT  "0x%08X"
-  #define CRC_FUNC    CRC32_Calc
-#endif // DO_CRC32
-
-uint8_t buf[1024];
+#include "crc.h"
 
 /**< CRC16 calculation table compatible with CCITT CRC */
 const uint16_t CRC16_TableCCITT[256] =
@@ -44,8 +23,7 @@ const uint16_t CRC16_TableCCITT[256] =
 
 /*
   Name  : CRC-32
-  Poly  : 0x04C11DB7    x^32 + x^26 + x^23 + x^22 + x^16 + x^12 + x^11
-                       + x^10 + x^8 + x^7 + x^5 + x^4 + x^2 + x + 1
+  Poly  : 0x04C11DB7
   Init  : 0xFFFFFFFF
   Revert: true
   XorOut: 0xFFFFFFFF
@@ -110,89 +88,3 @@ uint32_t CRC32_Calc(uint8_t *buf, uint32_t len, uint32_t crc)
   return crc;
 }
 
-int main(int argc, char *argv[])
-{
-	int n;
-	FILE *fd;
-	#ifdef DO_CRC16
-  uint16_t crc, crc2;
-  #endif
-	#ifdef DO_CRC32
-  uint32_t crc, crc2;
-  #endif
-  uint32_t size, pos;
-
-	if (argc != 2)
-  {
-    printf("USAGE: cortex_crc filename\n");
-    return 1;
-  }
-	fd = fopen(argv[1], "rb");
-	if (fd == NULL)
-  {
-    printf("ERROR: Can't open file for reading!\n");
-    return 2;
-  }
-
-  /**< Get file size */
-  fseek(fd, 0L, SEEK_END);
-  size = ftell(fd);
-  pos = 0;
-  n = 0;
-
-  /**< Move to start of the file */
-  fseek(fd, 0L, SEEK_SET);
-
-	crc = CRC_INIT;
-	crc2 = CRC_INIT;
-
-	if (size <= CRC_SIZE)
-  {
-    printf("ERROR: File size wrong!\n");
-    return 3;
-  }
-
-  /**< Reading binary file in 1024-bytes blocks */
-	while (pos < size)
-  {
-    if ((size - pos) >= 1024)
-      n = fread(buf, sizeof(uint8_t), 1024, fd);
-    else
-      n = fread(buf, sizeof(uint8_t), size - pos, fd);
-    if (n == 0)
-    {
-      printf("ERROR: Reading file!\n");
-      return 4;
-    }
-		crc = CRC_FUNC(buf, n, crc);
-		pos += n;
-		if (pos < size)
-      crc2 = CRC_FUNC(buf, n, crc2);
-    else
-      crc2 = CRC_FUNC(buf, n - CRC_SIZE, crc2);
-	}
-	fclose(fd);
-	#ifdef DO_CRC32
-	/**< Have to XOR the output for CRC32 */
-	crc ^= 0xFFFFFFFF;
-	crc2 ^= 0xFFFFFFFF;
-	#endif // DO_CRC32
-	if (crc2 == CRC_TYPE&buf[n - CRC_SIZE])
-  {
-		printf("WARNING: CRC has already been appended\n");
-		return 5;
-	}
-
-	/**< Write CRC to the end of the file */
-	fd = fopen(argv[1], "a+b");
-	if (fd == NULL)
-  {
-    printf("ERROR: Can't open file for writing\n");
-    return 6;
-  }
-	fwrite(&crc, sizeof(uint8_t), CRC_SIZE, fd);
-	fclose(fd);
-
-	printf("CRC appended to file: "CRC_FORMAT"\n", crc);
-	return 0;
-}
