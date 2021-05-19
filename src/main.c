@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include "crc.h"
 
@@ -22,6 +23,14 @@
 
 uint8_t buf[1024];
 
+void print_error(char *msg, int err_code)
+{
+  printf("ERROR: ");
+  printf(msg);
+  printf("\n");
+  exit(err_code);
+}
+
 int main(int argc, char *argv[])
 {
 	int n;
@@ -37,14 +46,11 @@ int main(int argc, char *argv[])
 	if (argc != 2)
   {
     printf("USAGE: crcfile FILENAME\n");
-    return 1;
+    return 0;
   }
 	fd = fopen(argv[1], "rb");
 	if (fd == NULL)
-  {
-    printf("ERROR: Can't open file for reading!\n");
-    return 2;
-  }
+    print_error("Can't open file for reading!", 1);
 
   /**< Get file size */
   fseek(fd, 0L, SEEK_END);
@@ -58,12 +64,6 @@ int main(int argc, char *argv[])
 	crc = CRC_INIT;
 	crc2 = CRC_INIT;
 
-	if (size <= CRC_SIZE)
-  {
-    printf("ERROR: File size wrong!\n");
-    return 3;
-  }
-
   /**< Reading binary file in 1024-bytes blocks */
 	while (pos < size)
   {
@@ -72,10 +72,7 @@ int main(int argc, char *argv[])
     else
       n = fread(buf, sizeof(uint8_t), size - pos, fd);
     if (n == 0)
-    {
-      printf("ERROR: Reading file!\n");
-      return 4;
-    }
+      print_error("Can't read data from file!", 2);
 		crc = CRC_FUNC(buf, n, crc);
 		pos += n;
 		if (pos < size)
@@ -92,16 +89,13 @@ int main(int argc, char *argv[])
 	if (crc2 == CRC_TYPE&buf[n - CRC_SIZE])
   {
 		printf("WARNING: CRC has already been appended\n");
-		return 5;
+		return 0;
 	}
 
 	/**< Write CRC to the end of the file */
 	fd = fopen(argv[1], "a+b");
 	if (fd == NULL)
-  {
-    printf("ERROR: Can't open file for writing\n");
-    return 6;
-  }
+    print_error("Can't open file for writing!", 3);
 	fwrite(&crc, sizeof(uint8_t), CRC_SIZE, fd);
 	fclose(fd);
 
