@@ -11,7 +11,7 @@
 				<Option object_output="obj/Debug/" />
 				<Option type="1" />
 				<Option compiler="gcc" />
-				<Option parameters="DA58.bin" />
+				<Option parameters="DA58-D.bin" />
 				<Compiler>
 					<Add option="-g" />
 				</Compiler>
